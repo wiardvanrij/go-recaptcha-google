@@ -2,15 +2,16 @@
 package recaptcha
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"google.golang.org/appengine"
 	"google.golang.org/appengine/urlfetch"
 )
 
@@ -36,10 +37,11 @@ type Recaptcha struct {
 }
 
 // check : initiate a recaptcha verify request
-func (r *Recaptcha) requestVerify(remoteAddr net.IP, captchaResponse string) (recaptchaResponse, error) {
+func (r *Recaptcha) requestVerify(request *http.Request, remoteAddr net.IP, captchaResponse string) (recaptchaResponse, error) {
 	// fire off request with a timeout of 10 seconds
-	httpClient := urlfetch.Client(context.TODO())
-	resp, err := httpClient.PostForm(
+	ctx := appengine.NewContext(request)
+	client := urlfetch.Client(ctx)
+	resp, err := client.PostForm(
 		recaptchaServer,
 		url.Values{
 			"secret":   {r.PrivateKey},
@@ -74,8 +76,8 @@ func (r *Recaptcha) requestVerify(remoteAddr net.IP, captchaResponse string) (re
 }
 
 // Check : check user IP, captcha subject (= page) and captcha response but return treshold
-func (r *Recaptcha) Check(remoteip net.IP, action string, response string) (success bool, score float32, err error) {
-	resp, err := r.requestVerify(remoteip, response)
+func (r *Recaptcha) Check(request *http.Request, remoteip net.IP, action string, response string) (success bool, score float32, err error) {
+	resp, err := r.requestVerify(request, remoteip, response)
 	// fetch/parsing failed
 	if err != nil {
 		return false, 0, err
@@ -93,17 +95,4 @@ func (r *Recaptcha) Check(remoteip net.IP, action string, response string) (succ
 
 	// user treshold was not enough
 	return true, resp.Score, nil
-}
-
-// Verify : check user IP, captcha subject (= page) and captcha response
-func (r *Recaptcha) Verify(remoteip net.IP, action string, response string, minScore float32) (success bool, err error) {
-	success, score, err := r.Check(remoteip, action, response)
-
-	// return false if response failed
-	if !success || err != nil {
-		return false, err
-	}
-
-	// user score was not enough
-	return score >= minScore, nil
 }

@@ -1,5 +1,8 @@
-go-recaptcha
+go-recaptcha-google
 ============
+
+This is just an easy fork to make it work on Google cloud
+-----
 
 About
 -----
